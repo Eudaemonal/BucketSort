@@ -3,15 +3,40 @@
 #include <algorithm>
 #include <cmath>
 
-bool aLessB(const unsigned int& x, const unsigned int& y, unsigned int pow) {
+
+
+void BucketSort::sort(unsigned int numCores){
+	const auto numThreads = numCores - 1;
+	buckets.clear();
+	buckets.resize(10);
+
+	for(const auto& num: numbersToSort){
+		auto firstDigit = getFirstDigit(num);
+		buckets[firstDigit].push_back(num);
+	}
+
+	auto threads = std::vector<std::thread>{};
+	for(auto i = 0; i<numThreads; ++i){
+		threads.push_back(std::thread{[this]() {this->sortBucket(); }});
+	}
+	sortBucket();
+
+	for(auto& t:threads){
+		if(t.joinable()){
+			t.join();
+		}
+	}
+}
+
+
+bool BucketSort::aLessB(const unsigned int& x, const unsigned int& y, unsigned int pow) const {
     
-        if (x == y) return false; // if the two numbers are the same then one is not less than the other
-    
-        unsigned int a = x;
+        if (x == y) return false;
+	
+	unsigned int a = x;
         unsigned int b = y;
     
-        // work out the digit we are currently comparing on. 
-        if (pow == 0) {
+	if (pow == 0) {
                 while (a / 10 > 0) {
                         a = a / 10; 
                 }   
@@ -33,9 +58,48 @@ bool aLessB(const unsigned int& x, const unsigned int& y, unsigned int pow) {
                 return a < b;
 }
 
-// TODO: replace this with a parallel version. 
-void BucketSort::sort(unsigned int numCores) {
-        std::sort(numbersToSort.begin(),numbersToSort.end(), [](const unsigned int& x, const unsigned int& y){
-                return aLessB(x,y,0);
-        } );
+
+
+
+
+void BucketSort::sortBucket() {
+	auto p = getBucketIndex();
+	while(p.second !=false){
+		auto& bucket = buckets[p.first];
+        	std::sort(bucket.begin(),bucket.end(), [this](const unsigned int& x, const unsigned int& y){
+          	      return aLessB(x,y,0);
+		} );
+
+		unsigned int pos = 0;
+		for(unsigned int i=0; i<p.first; ++i){
+			pos+=buckets[i].size();
+		}
+
+		for(unsigned int i=0;i<bucket.size(); ++i){
+			numbersToSort[pos] = bucket[i];
+			++pos;
+		}
+
+		p = getBucketIndex();
+	}
 }
+
+
+unsigned int BucketSort::getFirstDigit(unsigned int x) const {
+	while(x >= 10){
+		x/=10;
+	}
+	return x;
+}
+
+
+
+std::pair<unsigned int, bool> BucketSort::getBucketIndex() {
+	std::lock_guard<std::mutex> guard(currBucketIndexMutex);
+	if(currBucketIndex < buckets.size()){
+		return std::make_pair(currBucketIndex++, true);
+	}
+	return std::make_pair(currBucketIndex, false);
+}
+
+
