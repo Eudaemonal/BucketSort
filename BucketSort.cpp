@@ -16,7 +16,7 @@ void BucketSort::sort(unsigned int numCores){
 	}
 
 	auto threads = std::vector<std::thread>{};
-	for(auto i = 0; i<numThreads; ++i){
+	for(unsigned int i = 0; i<numThreads; ++i){
 		threads.push_back(std::thread{[this]() {this->sortBucket(); }});
 	}
 	sortBucket();
